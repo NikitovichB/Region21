@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/app_theme.dart';
+import 'team_screen.dart';
 
 class MatchDetailsScreen extends StatelessWidget {
   const MatchDetailsScreen({super.key, required this.matchId});
@@ -49,7 +50,7 @@ class MatchDetailsScreen extends StatelessWidget {
                 );
               }
 
-              final data = snap.data!.data() as Map<String, dynamic>;
+              final data = (snap.data!.data() as Map<String, dynamic>? ?? {});
 
               final status = (data['status'] ?? '').toString();
               final leagueId = (data['leagueId'] ?? '').toString();
@@ -61,11 +62,18 @@ class MatchDetailsScreen extends StatelessWidget {
               final awayScore = (data['awayScore'] ?? 0).toString();
 
               final start = (data['startAt'] as Timestamp).toDate();
-              final time = '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+              final time =
+                  '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+              final date =
+                  '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}';
+
+              final fieldLabel = _fieldLabelFromData(data);
 
               final streamUrl = (data['streamUrl'] ?? '').toString().trim();
               final isLive = status == 'live';
               final isFinished = status == 'finished';
+
+              final centerText = (isLive || isFinished) ? '$homeScore : $awayScore' : time;
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
@@ -79,67 +87,89 @@ class MatchDetailsScreen extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        Row(
+                        // ✅ шапка: ліга + дата по центру + статус справа
+                        Stack(
+                          alignment: Alignment.center,
                           children: [
-                            _LeaguePill(text: _leagueLabel(leagueId)),
-                            const Spacer(),
-                            if (isLive) const _LivePill(),
-                            if (!isLive)
-                              Text(
-                                isFinished ? 'Завершено' : 'Заплановано',
-                                style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w900),
+                            Row(
+                              children: [
+                                _LeaguePill(text: _leagueLabel(leagueId)),
+                                const Spacer(),
+                                if (isLive) const _LivePill(),
+                                if (!isLive)
+                                  Text(
+                                    isFinished ? 'Завершено' : 'Заплановано',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Text(
+                              date,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white70,
                               ),
+                            ),
                           ],
                         ),
+
                         const SizedBox(height: 14),
 
                         Row(
                           children: [
-                            _TeamBig(id: homeId),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(homeId, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                            _TeamTap(
+                              teamId: homeId,
+                              alignEnd: false,
+                              onTap: () => TeamScreen.open(context, teamId: homeId),
                             ),
+                            const SizedBox(width: 10),
                             Text(
-                              isLive || isFinished ? '$homeScore : $awayScore' : time,
+                              centerText,
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
                                 color: isLive ? Colors.red : Colors.white,
                               ),
                             ),
-                            Expanded(
-                              child: Text(
-                                awayId,
-                                textAlign: TextAlign.end,
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                              ),
+                            const SizedBox(width: 10),
+                            _TeamTap(
+                              teamId: awayId,
+                              alignEnd: true,
+                              onTap: () => TeamScreen.open(context, teamId: awayId),
                             ),
-                            const SizedBox(width: 12),
-                            _TeamBig(id: awayId),
                           ],
                         ),
+
+                        // ✅ поле под счетом/временем
+                        if (fieldLabel != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            fieldLabel,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 12),
 
-                  // ===== CONTENT BY STATUS =====
                   if (!isLive && !isFinished)
-                    const _CenterBox(
-                      text: 'Матч ще не розпочався',
-                      subtle: true,
-                    ),
+                    const _CenterBox(text: 'Матч ще не розпочався', subtle: true),
 
                   if (isFinished)
-                    const _CenterBox(
-                      text: 'Матч завершено',
-                      subtle: true,
-                    ),
+                    const _CenterBox(text: 'Матч завершено', subtle: true),
 
                   if (isLive) ...[
-                    // Тут потом вставим твою будущую статистику (голы/минуты/события)
                     const _CenterBox(
                       text: 'LIVE-центр (скоро додамо події: голи, картки, заміни)',
                       subtle: true,
@@ -166,6 +196,19 @@ class MatchDetailsScreen extends StatelessWidget {
   }
 }
 
+String? _fieldLabelFromData(Map<String, dynamic> data) {
+  final raw = data['field'] ?? data['fieldNumber'] ?? data['fieldNo'] ?? data['pitch'];
+  if (raw == null) return null;
+
+  final s = raw.toString().trim();
+  if (s.isEmpty) return null;
+
+  final low = s.toLowerCase();
+  if (low.contains('поле') || low.contains('pitch') || low.contains('field')) return s;
+
+  return 'Поле №$s';
+}
+
 Future<void> _openUrl(BuildContext context, String url) async {
   final uri = Uri.tryParse(url.trim());
   if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
@@ -183,6 +226,59 @@ Future<void> _openUrl(BuildContext context, String url) async {
   }
 }
 
+class _TeamTap extends StatelessWidget {
+  const _TeamTap({
+    required this.teamId,
+    required this.alignEnd,
+    required this.onTap,
+  });
+
+  final String teamId;
+  final bool alignEnd;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final db = FirebaseFirestore.instance;
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              if (!alignEnd) _TeamBig(id: teamId),
+              if (!alignEnd) const SizedBox(width: 10),
+              Flexible(
+                child: FutureBuilder<DocumentSnapshot>(
+                  future: db.collection('teams').doc(teamId.toLowerCase()).get(),
+                  builder: (context, snap) {
+                    final data = snap.data?.data() as Map<String, dynamic>?;
+                    final raw = (data?['name'] ?? teamId).toString();
+                    final name = _beautifyTeamName(raw);
+
+                    return Text(
+                      name,
+                      textAlign: alignEnd ? TextAlign.end : TextAlign.start,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
+                ),
+              ),
+              if (alignEnd) const SizedBox(width: 10),
+              if (alignEnd) _TeamBig(id: teamId),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TeamBig extends StatelessWidget {
   const _TeamBig({required this.id});
   final String id;
@@ -194,7 +290,9 @@ class _TeamBig extends StatelessWidget {
     return FutureBuilder<DocumentSnapshot>(
       future: db.collection('teams').doc(id.toLowerCase()).get(),
       builder: (context, snap) {
-        final logoUrl = (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
+        final logoUrl =
+            (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
+
         return Container(
           width: 52,
           height: 52,
@@ -230,7 +328,11 @@ class _LeaguePill extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppTheme.orange),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          color: AppTheme.orange,
+        ),
       ),
     );
   }
@@ -316,7 +418,35 @@ String _leagueLabel(String leagueId) {
   switch (leagueId) {
     case 'premier':
       return 'Премʼєр-ліга';
+    case '1':
+      return 'Перша ліга';
+    case '2':
+      return 'Друга ліга';
+    case '3':
+      return 'Третя ліга';
     default:
       return leagueId.isEmpty ? 'Ліга' : leagueId;
   }
+}
+
+String _beautifyTeamName(String s) {
+  var x = s.trim();
+
+  final low = x.toLowerCase();
+  if (low.startsWith('fk_')) x = x.substring(3);
+  if (low.startsWith('fk ')) x = x.substring(3);
+  if (low.startsWith('фк ')) x = x.substring(3);
+  if (low.startsWith('лфк ')) x = x.substring(3);
+
+  x = x.replaceAll('_', ' ').trim();
+
+  final parts = x.split(RegExp(r'\s+')).where((p) => p.trim().isNotEmpty).toList();
+  if (parts.isEmpty) return '—';
+
+  x = parts.map((p) {
+    if (p.isEmpty) return p;
+    return p[0].toUpperCase() + p.substring(1);
+  }).join(' ');
+
+  return x;
 }

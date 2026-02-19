@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
 
 import 'match_details_screen.dart';
+import 'team_screen.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -15,10 +16,8 @@ class _MatchesScreenState extends State<MatchesScreen> {
   int tabIndex = 0; // 0 = Розклад/LIVE, 1 = Завершені
   final _db = FirebaseFirestore.instance;
 
-  // ✅ "Всі ліги" як дефолт
   String leagueId = 'all';
 
-  // ✅ лишаємо тільки ті, що реально є
   static const _leagues = <String, String>{
     'all': 'Всі ліги',
     'premier': 'Премʼєр-ліга',
@@ -29,7 +28,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ якщо all — то без where
     final matchesQuery = leagueId == 'all'
         ? _db.collection('matches')
         : _db.collection('matches').where('leagueId', isEqualTo: leagueId);
@@ -98,7 +96,10 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       return const Center(
                         child: Text(
                           'Поки що матчів немає',
-                          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w800),
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       );
                     }
@@ -143,7 +144,6 @@ class _Header extends StatelessWidget {
   final String leagueId;
   final ValueChanged<String> onLeagueChanged;
 
-  // ✅ без PR і 4-ї
   static const _leagues = <String, String>{
     'all': 'Всі ліги',
     'premier': 'Премʼєр-ліга',
@@ -164,7 +164,6 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ✅ ОДНА стрілка (тільки як icon у DropdownButton).
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -172,20 +171,20 @@ class _Header extends StatelessWidget {
                 isExpanded: true,
                 isDense: true,
                 dropdownColor: const Color(0xFF121318),
-
-                // ✅ одна стрілка справа, і вона ближче до тексту
                 icon: const Padding(
                   padding: EdgeInsets.only(left: 6),
-                  child: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: Colors.white70),
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 22,
+                    color: Colors.white70,
+                  ),
                 ),
                 iconSize: 22,
-
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
                   color: Colors.white,
                 ),
-
                 items: _leagues.entries
                     .map(
                       (e) => DropdownMenuItem(
@@ -193,19 +192,20 @@ class _Header extends StatelessWidget {
                         child: Text(
                           e.value,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     )
                     .toList(),
-
                 onChanged: (v) {
                   if (v != null) onLeagueChanged(v);
                 },
               ),
             ),
           ),
-
           _TabButton(
             label: 'Розклад',
             selected: tabIndex == 0,
@@ -268,17 +268,25 @@ class _MatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = (doc['status'] ?? '').toString();
-    final leagueId = (doc['leagueId'] ?? '').toString();
+    final data = (doc.data() as Map<String, dynamic>? ?? {});
 
-    final homeId = (doc['homeTeamId'] ?? '').toString();
-    final awayId = (doc['awayTeamId'] ?? '').toString();
+    final status = (data['status'] ?? '').toString();
+    final leagueId = (data['leagueId'] ?? '').toString();
 
-    final homeScore = doc['homeScore'] ?? 0;
-    final awayScore = doc['awayScore'] ?? 0;
+    final homeId = (data['homeTeamId'] ?? '').toString();
+    final awayId = (data['awayTeamId'] ?? '').toString();
 
-    final start = (doc['startAt'] as Timestamp).toDate();
-    final time = '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+    final homeScore = data['homeScore'] ?? 0;
+    final awayScore = data['awayScore'] ?? 0;
+
+    final start = (data['startAt'] as Timestamp).toDate();
+
+    final time =
+        '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+    final date =
+        '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}';
+
+    final fieldLabel = _fieldLabelFromData(data);
 
     final isLive = status == 'live';
     final isFinished = status == 'finished';
@@ -298,28 +306,47 @@ class _MatchCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Row(
+            // ✅ верх: ліга + дата по центру + статус справа
+            Stack(
+              alignment: Alignment.center,
               children: [
-                _LeaguePill(text: _leagueLabel(leagueId)),
-                const Spacer(),
-                if (isLive) const _LiveBadge(),
-                if (!isLive)
-                  Text(
-                    isFinished ? 'Завершено' : 'Заплановано',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white70,
-                    ),
+                Row(
+                  children: [
+                    _LeaguePill(text: _leagueLabel(leagueId)),
+                    const Spacer(),
+                    if (isLive) const _LiveBadge(),
+                    if (!isLive)
+                      Text(
+                        isFinished ? 'Завершено' : 'Заплановано',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white70,
+                        ),
+                      ),
+                  ],
+                ),
+                Text(
+                  date,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white70,
                   ),
+                ),
               ],
             ),
+
             const SizedBox(height: 12),
+
             Row(
               children: [
-                _TeamMini(teamId: homeId),
+                _TeamTap(
+                  teamId: homeId,
+                  alignEnd: false,
+                  onTap: () => TeamScreen.open(context, teamId: homeId),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: _TeamName(teamId: homeId, alignEnd: false)),
                 Text(
                   centerText,
                   style: TextStyle(
@@ -328,11 +355,29 @@ class _MatchCard extends StatelessWidget {
                     color: isLive ? Colors.red : Colors.white,
                   ),
                 ),
-                Expanded(child: _TeamName(teamId: awayId, alignEnd: true)),
                 const SizedBox(width: 10),
-                _TeamMini(teamId: awayId),
+                _TeamTap(
+                  teamId: awayId,
+                  alignEnd: true,
+                  onTap: () => TeamScreen.open(context, teamId: awayId),
+                ),
               ],
             ),
+
+            // ✅ поле по центру под счетом/временем
+            if (fieldLabel != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                fieldLabel,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+
             if (isLive)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
@@ -351,6 +396,54 @@ class _MatchCard extends StatelessWidget {
                   ],
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String? _fieldLabelFromData(Map<String, dynamic> data) {
+  // ✅ у тебя в базе: field (string)
+  final raw = data['field'] ?? data['fieldNumber'] ?? data['fieldNo'] ?? data['pitch'];
+
+  if (raw == null) return null;
+
+  final s = raw.toString().trim();
+  if (s.isEmpty) return null;
+
+  final low = s.toLowerCase();
+  if (low.contains('поле') || low.contains('pitch') || low.contains('field')) return s;
+
+  // если просто число: "7" -> "Поле №7"
+  return 'Поле №$s';
+}
+
+class _TeamTap extends StatelessWidget {
+  const _TeamTap({
+    required this.teamId,
+    required this.alignEnd,
+    required this.onTap,
+  });
+
+  final String teamId;
+  final bool alignEnd;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Row(
+          mainAxisAlignment: alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
+          children: [
+            if (!alignEnd) _TeamMini(teamId: teamId),
+            if (!alignEnd) const SizedBox(width: 10),
+            Expanded(child: _TeamName(teamId: teamId, alignEnd: alignEnd)),
+            if (alignEnd) const SizedBox(width: 10),
+            if (alignEnd) _TeamMini(teamId: teamId),
           ],
         ),
       ),
@@ -396,7 +489,8 @@ class _TeamMini extends StatelessWidget {
     return FutureBuilder<DocumentSnapshot>(
       future: db.collection('teams').doc(teamId).get(),
       builder: (context, snap) {
-        final logoUrl = (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
+        final logoUrl =
+            (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
 
         return Container(
           width: 34,
@@ -471,8 +565,10 @@ class _LiveBadgeState extends State<_LiveBadge> with SingleTickerProviderStateMi
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 1))
-      ..repeat(reverse: true);
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -524,8 +620,6 @@ class _ErrorBox extends StatelessWidget {
   }
 }
 
-/// ✅ прибираємо fk_/FK/ФК, підкреслення і робимо нормальний вигляд.
-/// ВАЖЛИВО: не ламаємо CamelCase (OnlyAks), тобто не робимо Title Case завжди.
 String _beautifyTeamName(String s) {
   var x = s.trim();
 
@@ -536,11 +630,9 @@ String _beautifyTeamName(String s) {
 
   x = x.replaceAll('_', ' ').trim();
 
-  // Якщо рядок вже має великі літери (CamelCase/BrandCase) — НЕ перетворюємо.
   final hasUpper = RegExp(r'[A-ZА-ЯІЇЄҐ]').hasMatch(x);
   if (hasUpper) return x;
 
-  // Інакше — акуратний Title Case
   final parts = x.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   final titled = parts.map((p) {
     if (p.isEmpty) return p;
