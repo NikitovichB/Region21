@@ -15,8 +15,25 @@ class _MatchesScreenState extends State<MatchesScreen> {
   int tabIndex = 0; // 0 = Розклад/LIVE, 1 = Завершені
   final _db = FirebaseFirestore.instance;
 
+  // ✅ "Всі ліги" як дефолт
+  String leagueId = 'all';
+
+  // ✅ лишаємо тільки ті, що реально є
+  static const _leagues = <String, String>{
+    'all': 'Всі ліги',
+    'premier': 'Премʼєр-ліга',
+    '1': 'Перша ліга',
+    '2': 'Друга ліга',
+    '3': 'Третя ліга',
+  };
+
   @override
   Widget build(BuildContext context) {
+    // ✅ якщо all — то без where
+    final matchesQuery = leagueId == 'all'
+        ? _db.collection('matches')
+        : _db.collection('matches').where('leagueId', isEqualTo: leagueId);
+
     return Stack(
       children: [
         Container(
@@ -34,13 +51,12 @@ class _MatchesScreenState extends State<MatchesScreen> {
               _Header(
                 tabIndex: tabIndex,
                 onTabChanged: (v) => setState(() => tabIndex = v),
+                leagueId: leagueId,
+                onLeagueChanged: (v) => setState(() => leagueId = v),
               ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: _db
-                      .collection('matches')
-                      .where('leagueId', isEqualTo: 'premier')
-                      .snapshots(),
+                  stream: matchesQuery.snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return _ErrorBox(
@@ -117,10 +133,24 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.tabIndex,
     required this.onTabChanged,
+    required this.leagueId,
+    required this.onLeagueChanged,
   });
 
   final int tabIndex;
   final ValueChanged<int> onTabChanged;
+
+  final String leagueId;
+  final ValueChanged<String> onLeagueChanged;
+
+  // ✅ без PR і 4-ї
+  static const _leagues = <String, String>{
+    'all': 'Всі ліги',
+    'premier': 'Премʼєр-ліга',
+    '1': 'Перша ліга',
+    '2': 'Друга ліга',
+    '3': 'Третя ліга',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -134,12 +164,48 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Expanded(
-            child: Text(
-              'Премʼєр-ліга',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          // ✅ ОДНА стрілка (тільки як icon у DropdownButton).
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: leagueId,
+                isExpanded: true,
+                isDense: true,
+                dropdownColor: const Color(0xFF121318),
+
+                // ✅ одна стрілка справа, і вона ближче до тексту
+                icon: const Padding(
+                  padding: EdgeInsets.only(left: 6),
+                  child: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: Colors.white70),
+                ),
+                iconSize: 22,
+
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+
+                items: _leagues.entries
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Text(
+                          e.value,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    )
+                    .toList(),
+
+                onChanged: (v) {
+                  if (v != null) onLeagueChanged(v);
+                },
+              ),
             ),
           ),
+
           _TabButton(
             label: 'Розклад',
             selected: tabIndex == 0,
@@ -178,7 +244,9 @@ class _TabButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? AppTheme.orange.withOpacity(0.2) : Colors.black26,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? AppTheme.orange.withOpacity(0.35) : Colors.white10),
+          border: Border.all(
+            color: selected ? AppTheme.orange.withOpacity(0.35) : Colors.white10,
+          ),
         ),
         child: Text(
           label,
@@ -238,19 +306,20 @@ class _MatchCard extends StatelessWidget {
                 if (!isLive)
                   Text(
                     isFinished ? 'Завершено' : 'Заплановано',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white70),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white70,
+                    ),
                   ),
               ],
             ),
             const SizedBox(height: 12),
-
             Row(
               children: [
-                _TeamMini(id: homeId),
+                _TeamMini(teamId: homeId),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: Text(homeId, style: const TextStyle(fontWeight: FontWeight.w900)),
-                ),
+                Expanded(child: _TeamName(teamId: homeId, alignEnd: false)),
                 Text(
                   centerText,
                   style: TextStyle(
@@ -259,18 +328,11 @@ class _MatchCard extends StatelessWidget {
                     color: isLive ? Colors.red : Colors.white,
                   ),
                 ),
-                Expanded(
-                  child: Text(
-                    awayId,
-                    textAlign: TextAlign.end,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                ),
+                Expanded(child: _TeamName(teamId: awayId, alignEnd: true)),
                 const SizedBox(width: 10),
-                _TeamMini(id: awayId),
+                _TeamMini(teamId: awayId),
               ],
             ),
-
             if (isLive)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
@@ -280,7 +342,11 @@ class _MatchCard extends StatelessWidget {
                     SizedBox(width: 6),
                     Text(
                       'Натисни для деталей LIVE',
-                      style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w800, fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -292,18 +358,46 @@ class _MatchCard extends StatelessWidget {
   }
 }
 
-class _TeamMini extends StatelessWidget {
-  const _TeamMini({required this.id});
-  final String id;
+class _TeamName extends StatelessWidget {
+  const _TeamName({required this.teamId, required this.alignEnd});
+  final String teamId;
+  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
     final db = FirebaseFirestore.instance;
 
     return FutureBuilder<DocumentSnapshot>(
-      future: db.collection('teams').doc(id.toLowerCase()).get(),
+      future: db.collection('teams').doc(teamId).get(),
+      builder: (context, snap) {
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final raw = (data?['name'] ?? teamId).toString();
+        final name = _beautifyTeamName(raw);
+
+        return Text(
+          name,
+          textAlign: alignEnd ? TextAlign.end : TextAlign.start,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+          overflow: TextOverflow.ellipsis,
+        );
+      },
+    );
+  }
+}
+
+class _TeamMini extends StatelessWidget {
+  const _TeamMini({required this.teamId});
+  final String teamId;
+
+  @override
+  Widget build(BuildContext context) {
+    final db = FirebaseFirestore.instance;
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: db.collection('teams').doc(teamId).get(),
       builder: (context, snap) {
         final logoUrl = (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
+
         return Container(
           width: 34,
           height: 34,
@@ -339,7 +433,11 @@ class _LeaguePill extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppTheme.orange),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          color: AppTheme.orange,
+        ),
       ),
     );
   }
@@ -349,6 +447,12 @@ String _leagueLabel(String leagueId) {
   switch (leagueId) {
     case 'premier':
       return 'Премʼєр-ліга';
+    case '1':
+      return 'Перша ліга';
+    case '2':
+      return 'Друга ліга';
+    case '3':
+      return 'Третя ліга';
     default:
       return leagueId.isEmpty ? 'Ліга' : leagueId;
   }
@@ -385,7 +489,10 @@ class _LiveBadgeState extends State<_LiveBadge> with SingleTickerProviderStateMi
         children: const [
           Icon(Icons.circle, size: 10, color: Colors.red),
           SizedBox(width: 6),
-          Text('LIVE', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 12)),
+          Text(
+            'LIVE',
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 12),
+          ),
         ],
       ),
     );
@@ -415,4 +522,31 @@ class _ErrorBox extends StatelessWidget {
       ),
     );
   }
+}
+
+/// ✅ прибираємо fk_/FK/ФК, підкреслення і робимо нормальний вигляд.
+/// ВАЖЛИВО: не ламаємо CamelCase (OnlyAks), тобто не робимо Title Case завжди.
+String _beautifyTeamName(String s) {
+  var x = s.trim();
+
+  final lower = x.toLowerCase();
+  if (lower.startsWith('fk_')) x = x.substring(3);
+  if (lower.startsWith('fk ')) x = x.substring(3);
+  if (lower.startsWith('фк ')) x = x.substring(3);
+
+  x = x.replaceAll('_', ' ').trim();
+
+  // Якщо рядок вже має великі літери (CamelCase/BrandCase) — НЕ перетворюємо.
+  final hasUpper = RegExp(r'[A-ZА-ЯІЇЄҐ]').hasMatch(x);
+  if (hasUpper) return x;
+
+  // Інакше — акуратний Title Case
+  final parts = x.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final titled = parts.map((p) {
+    if (p.isEmpty) return p;
+    if (p.length == 1) return p.toUpperCase();
+    return p[0].toUpperCase() + p.substring(1);
+  }).join(' ');
+
+  return titled;
 }
