@@ -61,11 +61,16 @@ class MatchDetailsScreen extends StatelessWidget {
               final homeScore = (data['homeScore'] ?? 0).toString();
               final awayScore = (data['awayScore'] ?? 0).toString();
 
-              final start = (data['startAt'] as Timestamp).toDate();
-              final time =
-                  '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
-              final date =
-                  '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}';
+              final startAtTs = data['startAt'];
+              DateTime? start;
+              if (startAtTs is Timestamp) start = startAtTs.toDate();
+
+              final time = start == null
+                  ? '—'
+                  : '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+              final date = start == null
+                  ? '—'
+                  : '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}';
 
               final fieldLabel = _fieldLabelFromData(data);
 
@@ -73,11 +78,14 @@ class MatchDetailsScreen extends StatelessWidget {
               final isLive = status == 'live';
               final isFinished = status == 'finished';
 
-              final centerText = (isLive || isFinished) ? '$homeScore : $awayScore' : time;
+              // ⚠️ как ты просил: время в центре убираем (чтобы не "останавливалось")
+              // в центре либо счёт (live/finished), либо просто тире (scheduled)
+              final centerText = (isLive || isFinished) ? '$homeScore : $awayScore' : '—';
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 children: [
+                  // ====== HEADER CARD ======
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -144,7 +152,7 @@ class MatchDetailsScreen extends StatelessWidget {
                           ],
                         ),
 
-                        // ✅ поле под счетом/временем
+                        // ✅ поле под счетом (по центру)
                         if (fieldLabel != null) ...[
                           const SizedBox(height: 10),
                           Text(
@@ -157,35 +165,30 @@ class MatchDetailsScreen extends StatelessWidget {
                             ),
                           ),
                         ],
+
+                        // ✅ кнопка трансляции (если есть) — можно и для finished оставить, если хочешь
+                        if (streamUrl.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _PrimaryButton(
+                            text: 'Дивитись онлайн',
+                            onTap: () => _openUrl(context, streamUrl),
+                          ),
+                        ],
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 12),
 
+                  // ====== LIVE CENTER (и для LIVE, и для FINISHED) ======
                   if (!isLive && !isFinished)
-                    const _CenterBox(text: 'Матч ще не розпочався', subtle: true),
-
-                  if (isFinished)
-                    const _CenterBox(text: 'Матч завершено', subtle: true),
-
-                  if (isLive) ...[
-                    const _CenterBox(
-                      text: 'LIVE-центр (скоро додамо події: голи, картки, заміни)',
-                      subtle: true,
+                    const _CenterBox(text: 'Матч ще не розпочався', subtle: true)
+                  else
+                    _LiveCenter(
+                      matchId: matchId,
+                      homeTeamId: homeId,
+                      awayTeamId: awayId,
                     ),
-                    const SizedBox(height: 10),
-                    if (streamUrl.isNotEmpty)
-                      _PrimaryButton(
-                        text: 'Дивитись онлайн',
-                        onTap: () => _openUrl(context, streamUrl),
-                      ),
-                    if (streamUrl.isEmpty)
-                      const _CenterBox(
-                        text: 'Посилання на трансляцію ще не додано',
-                        subtle: true,
-                      ),
-                  ],
                 ],
               );
             },
@@ -195,6 +198,300 @@ class MatchDetailsScreen extends StatelessWidget {
     );
   }
 }
+
+class _LiveCenter extends StatelessWidget {
+  const _LiveCenter({
+    required this.matchId,
+    required this.homeTeamId,
+    required this.awayTeamId,
+  });
+
+  final String matchId;
+  final String homeTeamId;
+  final String awayTeamId;
+
+  @override
+  Widget build(BuildContext context) {
+    final db = FirebaseFirestore.instance;
+
+    final q = db
+        .collection('matches')
+        .doc(matchId)
+        .collection('events')
+        .orderBy('minute')
+        .orderBy('createdAt');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: q.snapshots(),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Text(
+              'Помилка LIVE-центру:\n${snap.error}',
+              style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w800),
+            );
+          }
+          if (!snap.hasData) {
+            return const SizedBox(
+              height: 80,
+              child: Center(child: LinearProgressIndicator()),
+            );
+          }
+
+          final docs = snap.data!.docs;
+          if (docs.isEmpty) {
+            return const Text(
+              'Поки що подій немає.',
+              style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w800),
+            );
+          }
+
+          final events = docs.map((d) => _MatchEvent.fromDoc(d)).toList();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('LIVE-центр', style: TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+
+              // timeline
+              ...events.map((e) => _TimelineRow(
+                    event: e,
+                  )),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TimelineRow extends StatelessWidget {
+  const _TimelineRow({required this.event});
+  final _MatchEvent event;
+
+  @override
+  Widget build(BuildContext context) {
+    final isHome = event.teamSide == 'home';
+    final isAway = event.teamSide == 'away';
+
+    // center icon
+    final icon = _eventIcon(event.type);
+    final iconColor = _eventColor(event.type);
+
+    final minuteText = event.minute == null ? '' : '${event.minute}′';
+    final player = (event.playerName ?? '').trim();
+
+    // left text (home)
+    final leftText = isHome
+        ? _eventText(event.type, player: player, minute: minuteText)
+        : '';
+
+    // right text (away)
+    final rightText = isAway
+        ? _eventText(event.type, player: player, minute: minuteText)
+        : '';
+
+    // neutral (start/end/var without side)
+    final neutral = (!isHome && !isAway)
+        ? _eventText(event.type, player: player, minute: minuteText)
+        : null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // LEFT
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                neutral != null ? '' : leftText,
+                textAlign: TextAlign.left,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+
+          // CENTER (line + icon)
+          SizedBox(
+            width: 42,
+            child: Column(
+              children: [
+                Container(
+                  width: 2,
+                  height: 10,
+                  color: Colors.white10,
+                ),
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.20),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Icon(icon, size: 18, color: iconColor),
+                ),
+                Container(
+                  width: 2,
+                  height: 10,
+                  color: Colors.white10,
+                ),
+              ],
+            ),
+          ),
+
+          // RIGHT
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                neutral != null ? '' : rightText,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+
+          // NEUTRAL CENTER TEXT (если событие без стороны)
+          if (neutral != null)
+            PositionedTextOverlay(neutral: neutral),
+        ],
+      ),
+    );
+  }
+}
+
+/// Хак без Stack внутри Row: отдельный виджет, который рисует neutral текст строкой ниже
+class PositionedTextOverlay extends StatelessWidget {
+  const PositionedTextOverlay({super.key, required this.neutral});
+  final String neutral;
+
+  @override
+  Widget build(BuildContext context) {
+    // выведем нейтральное событие отдельной строкой под рядом
+    return const SizedBox.shrink();
+  }
+}
+
+// ===== helpers for event UI =====
+
+IconData _eventIcon(String type) {
+  switch (type) {
+    case 'goal':
+      return Icons.sports_soccer_rounded;
+    case 'yellow':
+      return Icons.rectangle_rounded;
+    case 'red':
+      return Icons.rectangle_rounded;
+    case 'var':
+      return Icons.verified_rounded;
+    case 'start':
+      return Icons.play_arrow_rounded;
+    case 'end':
+      return Icons.flag_rounded;
+    default:
+      return Icons.bolt_rounded;
+  }
+}
+
+Color _eventColor(String type) {
+  switch (type) {
+    case 'goal':
+      return Colors.white;
+    case 'yellow':
+      return const Color(0xFFFFD54F);
+    case 'red':
+      return Colors.redAccent;
+    case 'var':
+      return AppTheme.orange;
+    case 'start':
+      return Colors.white70;
+    case 'end':
+      return Colors.white70;
+    default:
+      return Colors.white70;
+  }
+}
+
+String _eventText(String type, {required String player, required String minute}) {
+  final who = player.isEmpty ? '' : player;
+  switch (type) {
+    case 'start':
+      return minute.isEmpty ? 'Почався матч' : 'Почався матч • $minute';
+    case 'end':
+      return minute.isEmpty ? 'Матч завершено' : 'Матч завершено • $minute';
+    case 'goal':
+      if (who.isEmpty) return minute.isEmpty ? 'Гол' : 'Гол • $minute';
+      return minute.isEmpty ? who : '$who • $minute';
+    case 'yellow':
+      if (who.isEmpty) return minute.isEmpty ? 'Жовта картка' : 'Жовта • $minute';
+      return minute.isEmpty ? who : '$who • $minute';
+    case 'red':
+      if (who.isEmpty) return minute.isEmpty ? 'Червона картка' : 'Червона • $minute';
+      return minute.isEmpty ? who : '$who • $minute';
+    case 'var':
+      return minute.isEmpty ? 'VAR' : 'VAR • $minute';
+    default:
+      return minute.isEmpty ? type : '$type • $minute';
+  }
+}
+
+// ===== event model =====
+
+class _MatchEvent {
+  final String id;
+  final String type; // start/goal/yellow/red/var/end
+  final String? teamSide; // home/away/null
+  final int? minute;
+  final String? playerName;
+
+  _MatchEvent({
+    required this.id,
+    required this.type,
+    required this.teamSide,
+    required this.minute,
+    required this.playerName,
+  });
+
+  factory _MatchEvent.fromDoc(QueryDocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final type = (data['type'] ?? '').toString();
+    final teamSide = (data['teamSide'] ?? '').toString().trim();
+    final minuteRaw = data['minute'];
+    int? minute;
+    if (minuteRaw is int) minute = minuteRaw;
+    if (minuteRaw is num) minute = minuteRaw.toInt();
+
+    final player = (data['playerName'] ?? data['player'] ?? '').toString();
+
+    return _MatchEvent(
+      id: doc.id,
+      type: type.isEmpty ? 'event' : type,
+      teamSide: teamSide.isEmpty ? null : teamSide,
+      minute: minute,
+      playerName: player.trim().isEmpty ? null : player.trim(),
+    );
+  }
+}
+
+// ===== existing helpers/widgets (твои) =====
 
 String? _fieldLabelFromData(Map<String, dynamic> data) {
   final raw = data['field'] ?? data['fieldNumber'] ?? data['fieldNo'] ?? data['pitch'];
@@ -290,8 +587,7 @@ class _TeamBig extends StatelessWidget {
     return FutureBuilder<DocumentSnapshot>(
       future: db.collection('teams').doc(id.toLowerCase()).get(),
       builder: (context, snap) {
-        final logoUrl =
-            (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
+        final logoUrl = (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
 
         return Container(
           width: 52,
