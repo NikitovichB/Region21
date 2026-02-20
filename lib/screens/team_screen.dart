@@ -1,8 +1,10 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import 'match_details_screen.dart';
+import 'player_card.dart';
 
 class TeamScreen extends StatelessWidget {
   const TeamScreen({super.key, required this.teamId});
@@ -95,7 +97,8 @@ class TeamScreen extends StatelessWidget {
                               ),
                             ),
                           ],
-                        ),
+
+),
                       ),
                     ),
                     Padding(
@@ -203,7 +206,7 @@ class _TabSquad extends StatelessWidget {
                     );
                   }
 
-                  return LayoutBuilder(
+return LayoutBuilder(
                     builder: (context, c) {
                       const gap = 8.0;
                       final count = docs.length.clamp(1, 5);
@@ -283,13 +286,8 @@ class _TabSquad extends StatelessWidget {
 
                       return InkWell(
                         borderRadius: BorderRadius.circular(14),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Скоро: сторінка гравця — $last $first'),
-                            ),
-                          );
-                        },
+                        // ✅ ВОТ ТУТ НАЖАТИЕ НА ИГРОКА → ОТКРЫВАЕТ КАРТОЧКУ
+                        onTap: () => PlayerCardSheet.open(context, playerId: d.id),
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: Row(
@@ -299,7 +297,8 @@ class _TabSquad extends StatelessWidget {
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
+
+children: [
                                     Text(
                                       '${last.isEmpty ? '(без прізвища)' : last} ${first.isEmpty ? '' : first}',
                                       style: const TextStyle(fontWeight: FontWeight.w900),
@@ -341,7 +340,6 @@ class _TabSquad extends StatelessWidget {
     );
   }
 }
-
 /* =========================
    TAB: МАТЧІ
    ========================= */
@@ -367,9 +365,13 @@ class _TabMatches extends StatelessWidget {
         }
 
         final docs = snap.data!.docs;
+        if (docs.isEmpty) {
+          return const _CenterBox(text: 'Поки що матчів немає');
+        }
 
         final upcoming = docs.where((d) {
           final s = (d.data()['status'] ?? '').toString();
+          // ✅ ВАЖНО: тут ДОЛЖНО БЫТЬ || (иначе всё краснеет)
           return s == 'scheduled' || s == 'live';
         }).toList();
 
@@ -393,10 +395,6 @@ class _TabMatches extends StatelessWidget {
           final bTime = (b.data()['startAt'] as Timestamp?)?.toDate() ?? DateTime(1900);
           return bTime.compareTo(aTime);
         });
-
-        if (docs.isEmpty) {
-          return const _CenterBox(text: 'Поки що матчів немає');
-        }
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
@@ -444,14 +442,15 @@ class _TeamMatchCard extends StatelessWidget {
         ? '—'
         : '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}';
 
-    // ✅ поле у тебя в базе: field (string). Делаем safe fallback.
     final fieldLabel = _fieldLabelFromMap(data);
 
     final isLive = status == 'live';
     final isFinished = status == 'finished';
+    // ✅ ВАЖНО: тут ДОЛЖНО БЫТЬ || (иначе всё краснеет)
     final centerText = (isLive || isFinished) ? '$homeScore : $awayScore' : time;
 
-    return InkWell(
+
+return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: () => MatchDetailsScreen.open(context, matchId: doc.id),
       child: Container(
@@ -464,7 +463,6 @@ class _TeamMatchCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // ✅ верх: ліга + дата по центру + статус справа
             Stack(
               alignment: Alignment.center,
               children: [
@@ -484,8 +482,6 @@ class _TeamMatchCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                // ✅ ВАЖНО: не Positioned.fill (он иногда «съедает» клики/флекс),
-                // просто центрируем текст поверх Row.
                 Text(
                   date,
                   style: const TextStyle(
@@ -496,9 +492,7 @@ class _TeamMatchCard extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
             Row(
               children: [
                 _TeamMini(teamId: homeId),
@@ -517,8 +511,6 @@ class _TeamMatchCard extends StatelessWidget {
                 _TeamMini(teamId: awayId),
               ],
             ),
-
-            // ✅ поле по центру под счётом/временем
             if (fieldLabel != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -531,25 +523,6 @@ class _TeamMatchCard extends StatelessWidget {
                 ),
               ),
             ],
-
-            if (isLive)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Row(
-                  children: const [
-                    Icon(Icons.touch_app_rounded, size: 16, color: Colors.white54),
-                    SizedBox(width: 6),
-                    Text(
-                      'Натисни для деталей LIVE',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
@@ -594,7 +567,7 @@ class _TabTable extends StatelessWidget {
         final idx = teams.indexWhere((t) => t.id == teamId);
         final pos = idx >= 0 ? (idx + 1) : null;
 
-        return ListView(
+return ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
           children: [
             Container(
@@ -676,7 +649,8 @@ class _TabTable extends StatelessWidget {
                             child: Text('0',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                          ),
+
+),
                           const SizedBox(
                             width: 46,
                             child: Text('0:0',
@@ -746,7 +720,6 @@ class _TabMedia extends StatelessWidget {
     );
   }
 }
-
 /* =========================
    PROGRESS CHIP (compact)
    ========================= */
@@ -876,7 +849,7 @@ class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.text);
   final String text;
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Text(
       text,
@@ -1015,7 +988,7 @@ class _TeamName extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = FirebaseFirestore.instance;
 
-    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       future: db.collection('teams').doc(teamId).get(),
       builder: (context, snap) {
         final data = snap.data?.data();
@@ -1127,7 +1100,6 @@ String _leagueLabel(String leagueId) {
 }
 
 String? _fieldLabelFromMap(Map<String, dynamic> data) {
-  // ✅ safe чтение без doc.get (чтобы не падало)
   final raw = data['field'] ?? data['fieldNumber'] ?? data['pitch'] ?? data['fieldNo'];
   if (raw == null) return null;
 
@@ -1135,12 +1107,14 @@ String? _fieldLabelFromMap(Map<String, dynamic> data) {
   if (s.isEmpty) return null;
 
   final low = s.toLowerCase();
-  if (low.contains('поле') || low.contains('pitch') || low.contains('field')) return s;
-
+  // ✅ ВАЖНО: тут ДОЛЖНО БЫТЬ || (иначе всё краснеет)
+ if (low.contains('поле') ||
+     low.contains('pitch') ||
+     low.contains('field')) return s;
   return 'Поле №$s';
 }
 
-/// Убираем FK/FC/ФК + fk_ + подчёркивания (как в таблице/матчах)
+/// Убираем FK/FC/ФК + fk_ + подчёркивания
 String _beautifyTeamName(String s) {
   var x = s.trim();
 
