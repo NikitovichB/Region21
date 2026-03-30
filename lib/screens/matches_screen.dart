@@ -34,15 +34,21 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
     return Stack(
       children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF2A1B14), Color(0xFF0E0F12)],
-            ),
+        // ✅ ФОНОВАЯ КАРТИНКА НА ВЕСЬ ЭКРАН
+        Positioned.fill(
+          child: Image.asset(
+            'assets/back.jpg',
+            fit: BoxFit.cover,
           ),
         ),
+
+        // ✅ затемнение (чтобы текст читался)
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withOpacity(0.55),
+          ),
+        ),
+
         SafeArea(
           child: Column(
             children: [
@@ -171,14 +177,11 @@ class _Header extends StatelessWidget {
                 isExpanded: true,
                 isDense: true,
                 dropdownColor: const Color(0xFF121318),
-                icon: const Padding(
-                  padding: EdgeInsets.only(left: 6),
-                  child: Icon(
+                icon: const Icon(
                     Icons.keyboard_arrow_down_rounded,
                     size: 22,
                     color: Colors.white70,
                   ),
-                ),
                 iconSize: 22,
                 style: const TextStyle(
                   fontSize: 16,
@@ -436,16 +439,24 @@ class _TeamTap extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Row(
-          mainAxisAlignment: alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
-          children: [
-            if (!alignEnd) _TeamMini(teamId: teamId),
-            if (!alignEnd) const SizedBox(width: 10),
-            Expanded(child: _TeamName(teamId: teamId, alignEnd: alignEnd)),
-            if (alignEnd) const SizedBox(width: 10),
-            if (alignEnd) _TeamMini(teamId: teamId),
-          ],
-        ),
+child: Padding(
+  padding: const EdgeInsets.only(top: 24),
+  child: Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      _TeamMini(
+        teamId: teamId,
+        size: 28,
+      ),
+      const SizedBox(height: 10),
+      _TeamName(
+        teamId: teamId,
+        alignEnd: false,
+      ),
+    ],
+  ),
+),
       ),
     );
   }
@@ -467,20 +478,30 @@ class _TeamName extends StatelessWidget {
         final raw = (data?['name'] ?? teamId).toString();
         final name = _beautifyTeamName(raw);
 
-        return Text(
-          name,
-          textAlign: alignEnd ? TextAlign.end : TextAlign.start,
-          style: const TextStyle(fontWeight: FontWeight.w900),
-          overflow: TextOverflow.ellipsis,
-        );
+  return Text(
+  name,
+  textAlign: TextAlign.center,
+  maxLines: 2,
+  overflow: TextOverflow.ellipsis,
+  style: const TextStyle(
+    fontWeight: FontWeight.w900,
+    fontSize: 13,
+    height: 1.1,
+  ),
+);
       },
     );
   }
 }
 
 class _TeamMini extends StatelessWidget {
-  const _TeamMini({required this.teamId});
+  const _TeamMini({
+    required this.teamId,
+    this.size = 22,
+  });
+
   final String teamId;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -490,28 +511,34 @@ class _TeamMini extends StatelessWidget {
       future: db.collection('teams').doc(teamId).get(),
       builder: (context, snap) {
         final logoUrl =
-            (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
+            (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString() ?? '';
 
         return Container(
-          width: 34,
-          height: 34,
+          width: size * 1.7,
+          height: size * 1.7,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.white.withOpacity(0.06),
             border: Border.all(color: Colors.white10),
-            image: (logoUrl != null && logoUrl.isNotEmpty)
-                ? DecorationImage(image: NetworkImage(logoUrl), fit: BoxFit.cover)
+            image: logoUrl.isNotEmpty
+                ? DecorationImage(
+                    image: NetworkImage(logoUrl),
+                    fit: BoxFit.cover,
+                  )
                 : null,
           ),
-          child: (logoUrl == null || logoUrl.isEmpty)
-              ? const Icon(Icons.shield_rounded, size: 18, color: Colors.white70)
+          child: logoUrl.isEmpty
+              ? Icon(
+                  Icons.shield_rounded,
+                  size: size,
+                  color: Colors.white70,
+                )
               : null,
         );
       },
     );
   }
 }
-
 class _LeaguePill extends StatelessWidget {
   const _LeaguePill({required this.text});
   final String text;

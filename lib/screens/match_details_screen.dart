@@ -21,15 +21,22 @@ class MatchDetailsScreen extends StatelessWidget {
 
     return Stack(
       children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF2A1B14), Color(0xFF0E0F12)],
-            ),
+
+        /// ✅ ФОНОВАЯ КАРТИНКА
+        Positioned.fill(
+          child: Image.asset(
+            'assets/back.jpg',
+            fit: BoxFit.cover,
           ),
         ),
+
+        /// ✅ затемнение поверх картинки (чтобы текст читался)
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withOpacity(0.55),
+          ),
+        ),
+
         Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
@@ -38,7 +45,7 @@ class MatchDetailsScreen extends StatelessWidget {
             title: const Text('Матч'),
             centerTitle: true,
           ),
-          body: StreamBuilder<DocumentSnapshot>(
+          body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: db.collection('matches').doc(matchId).snapshots(),
             builder: (context, snap) {
               if (snap.hasError) {
@@ -50,7 +57,7 @@ class MatchDetailsScreen extends StatelessWidget {
                 );
               }
 
-              final data = (snap.data!.data() as Map<String, dynamic>? ?? {});
+              final data = snap.data!.data() ?? {};
 
               final status = (data['status'] ?? '').toString();
               final leagueId = (data['leagueId'] ?? '').toString();
@@ -65,9 +72,6 @@ class MatchDetailsScreen extends StatelessWidget {
               DateTime? start;
               if (startAtTs is Timestamp) start = startAtTs.toDate();
 
-              final time = start == null
-                  ? '—'
-                  : '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
               final date = start == null
                   ? '—'
                   : '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}';
@@ -78,14 +82,14 @@ class MatchDetailsScreen extends StatelessWidget {
               final isLive = status == 'live';
               final isFinished = status == 'finished';
 
-              // ⚠️ как ты просил: время в центре убираем (чтобы не "останавливалось")
-              // в центре либо счёт (live/finished), либо просто тире (scheduled)
-              final centerText = (isLive || isFinished) ? '$homeScore : $awayScore' : '—';
+              final centerText =
+                  (isLive || isFinished) ? '$homeScore : $awayScore' : '—';
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 children: [
-                  // ====== HEADER CARD ======
+
+                  /// HEADER CARD
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -95,7 +99,6 @@ class MatchDetailsScreen extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        // ✅ шапка: ліга + дата по центру + статус справа
                         Stack(
                           alignment: Alignment.center,
                           children: [
@@ -103,10 +106,13 @@ class MatchDetailsScreen extends StatelessWidget {
                               children: [
                                 _LeaguePill(text: _leagueLabel(leagueId)),
                                 const Spacer(),
-                                if (isLive) const _LivePill(),
+
+if (isLive) const _LivePill(),
                                 if (!isLive)
                                   Text(
-                                    isFinished ? 'Завершено' : 'Заплановано',
+                                    isFinished
+                                        ? 'Завершено'
+                                        : 'Заплановано',
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontWeight: FontWeight.w900,
@@ -127,32 +133,38 @@ class MatchDetailsScreen extends StatelessWidget {
 
                         const SizedBox(height: 14),
 
-                        Row(
-                          children: [
-                            _TeamTap(
-                              teamId: homeId,
-                              alignEnd: false,
-                              onTap: () => TeamScreen.open(context, teamId: homeId),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              centerText,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                color: isLive ? Colors.red : Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            _TeamTap(
-                              teamId: awayId,
-                              alignEnd: true,
-                              onTap: () => TeamScreen.open(context, teamId: awayId),
-                            ),
-                          ],
-                        ),
-
-                        // ✅ поле под счетом (по центру)
+                    Row(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Expanded(
+      child: _TeamLogoName(
+        teamId: homeId,
+        align: TextAlign.center,
+        onTap: () => TeamScreen.open(context, teamId: homeId),
+      ),
+    ),
+    const SizedBox(width: 12),
+    Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Text(
+        centerText,
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w900,
+          color: isLive ? Colors.red : Colors.white,
+        ),
+      ),
+    ),
+    const SizedBox(width: 12),
+    Expanded(
+      child: _TeamLogoName(
+        teamId: awayId,
+        align: TextAlign.center,
+        onTap: () => TeamScreen.open(context, teamId: awayId),
+      ),
+    ),
+  ],
+),
                         if (fieldLabel != null) ...[
                           const SizedBox(height: 10),
                           Text(
@@ -166,12 +178,12 @@ class MatchDetailsScreen extends StatelessWidget {
                           ),
                         ],
 
-                        // ✅ кнопка трансляции (если есть) — можно и для finished оставить, если хочешь
                         if (streamUrl.isNotEmpty) ...[
                           const SizedBox(height: 12),
                           _PrimaryButton(
                             text: 'Дивитись онлайн',
-                            onTap: () => _openUrl(context, streamUrl),
+                            onTap: () =>
+                                _openUrl(context, streamUrl),
                           ),
                         ],
                       ],
@@ -180,9 +192,9 @@ class MatchDetailsScreen extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // ====== LIVE CENTER (и для LIVE, и для FINISHED) ======
                   if (!isLive && !isFinished)
-                    const _CenterBox(text: 'Матч ще не розпочався', subtle: true)
+                    const _CenterBox(
+                        text: 'Матч ще не розпочався', subtle: true)
                   else
                     _LiveCenter(
                       matchId: matchId,
@@ -195,6 +207,81 @@ class MatchDetailsScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TeamLogoName extends StatelessWidget {
+  const _TeamLogoName({
+    required this.teamId,
+    required this.align,
+    required this.onTap,
+  });
+
+  final String teamId;
+  final TextAlign align;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final db = FirebaseFirestore.instance;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: db.collection('teams').doc(teamId.toLowerCase()).get(),
+              builder: (context, snap) {
+                final data = snap.data?.data();
+                final logoUrl = (data?['logoUrl'] ?? '').toString().trim();
+
+                return Container(
+                  width: 64, // ✅ больше лого
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black.withOpacity(0.25),
+                    border: Border.all(color: Colors.white10),
+                    image: logoUrl.isNotEmpty
+                        ? DecorationImage(image: NetworkImage(logoUrl), fit: BoxFit.cover)
+                        : null,
+                  ),
+                  child: logoUrl.isEmpty
+                      ? const Icon(Icons.shield_rounded, size: 30, color: Colors.white70)
+                      : null,
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: db.collection('teams').doc(teamId.toLowerCase()).get(),
+              builder: (context, snap) {
+                final data = snap.data?.data();
+                final raw = (data?['name'] ?? teamId).toString();
+                final name = _beautifyTeamName(raw);
+
+                return Text(
+                  name,
+                  textAlign: align,
+                  maxLines: 2, // ✅ если длинное — в 2 строки
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.05,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -213,7 +300,6 @@ class _LiveCenter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = FirebaseFirestore.instance;
-
     final q = db
         .collection('matches')
         .doc(matchId)
@@ -228,7 +314,7 @@ class _LiveCenter extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white10),
       ),
-      child: StreamBuilder<QuerySnapshot>(
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: q.snapshots(),
         builder: (context, snap) {
           if (snap.hasError) {
@@ -260,10 +346,7 @@ class _LiveCenter extends StatelessWidget {
               const Text('LIVE-центр', style: TextStyle(fontWeight: FontWeight.w900)),
               const SizedBox(height: 10),
 
-              // timeline
-              ...events.map((e) => _TimelineRow(
-                    event: e,
-                  )),
+              ...events.map((e) => _TimelineRow(event: e)),
             ],
           );
         },
@@ -278,115 +361,187 @@ class _TimelineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isHome = event.teamSide == 'home';
-    final isAway = event.teamSide == 'away';
+    final isHome = event.side == 'home';
+    final isAway = event.side == 'away';
 
-    // center icon
     final icon = _eventIcon(event.type);
     final iconColor = _eventColor(event.type);
 
     final minuteText = event.minute == null ? '' : '${event.minute}′';
     final player = (event.playerName ?? '').trim();
+    final assist = (event.assistName ?? '').trim();
+    final note = (event.note ?? '').trim();
 
-    // left text (home)
-    final leftText = isHome
-        ? _eventText(event.type, player: player, minute: minuteText)
-        : '';
+// ✅ START — по центру: текст + свисток + иконка по центру
+if (event.type == 'start') {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      children: [
+        const Text(
+          'Матч почався',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 6),
+        const SizedBox(height: 10),
+        _CenterIcon(icon: icon, color: iconColor),
+      ],
+    ),
+  );
+}
 
-    // right text (away)
-    final rightText = isAway
-        ? _eventText(event.type, player: player, minute: minuteText)
-        : '';
+// ✅ END — так же по центру в самом низу
+if (event.type == 'end') {
+  return Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Column(
+      children: [
+        const SizedBox(height: 6),
+        const SizedBox(height: 10),
+        _CenterIcon(icon: icon, color: iconColor),
+        const Text(
+          'Матч завершено',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          textAlign: TextAlign.center,
+        ),
 
-    // neutral (start/end/var without side)
-    final neutral = (!isHome && !isAway)
-        ? _eventText(event.type, player: player, minute: minuteText)
-        : null;
+      ],
+    ),
+  );
+}
 
+    Widget buildSideText({required TextAlign align}) {
+      // VAR
+      if (event.type == 'var') {
+        final title = note.isEmpty ? 'VAR' : 'VAR ($note)';
+        final text = minuteText.isEmpty ? title : '$title • $minuteText';
+        return Text(
+          text,
+          textAlign: align,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+        );
+      }
+
+      // goal / yellow / red — вместо "ГОЛ/Жовта" показываем игрока
+      final main = player.isEmpty
+          ? _eventTitle(event.type)
+          : (minuteText.isEmpty ? player : '$player • $minuteText');
+
+      return Column(
+        crossAxisAlignment:
+            align == TextAlign.right ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Text(
+            main,
+            textAlign: align,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+          ),
+          if (event.type == 'goal' && assist.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Асист: $assist',
+                textAlign: align,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    // neutral (без стороны) — центрируем
+    final isNeutral = !isHome && !isAway;
+
+    if (isNeutral) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          children: [
+            Text(
+              _eventTitleWithNote(event.type, note),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            if (minuteText.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                minuteText,
+                style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+            ],
+            const SizedBox(height: 10),
+            _CenterIcon(icon: icon, color: iconColor),
+          ],
+        ),
+      );
+    }
+
+    // обычные события — текст возле центра (как ты хотел)
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // LEFT
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                neutral != null ? '' : leftText,
-                textAlign: TextAlign.left,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
-
-          // CENTER (line + icon)
-          SizedBox(
-            width: 42,
-            child: Column(
-              children: [
-                Container(
-                  width: 2,
-                  height: 10,
-                  color: Colors.white10,
-                ),
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.20),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: Icon(icon, size: 18, color: iconColor),
-                ),
-                Container(
-                  width: 2,
-                  height: 10,
-                  color: Colors.white10,
-                ),
-              ],
-            ),
-          ),
-
-          // RIGHT
+          // LEFT (home) — справа к центру
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                neutral != null ? '' : rightText,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                ),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: isHome ? buildSideText(align: TextAlign.right) : const SizedBox.shrink(),
               ),
             ),
           ),
+          // CENTER
+          _CenterIcon(icon: icon, color: iconColor),
 
-          // NEUTRAL CENTER TEXT (если событие без стороны)
-          if (neutral != null)
-            PositionedTextOverlay(neutral: neutral),
+          // RIGHT (away) — слева к центру
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: isAway ? buildSideText(align: TextAlign.left) : const SizedBox.shrink(),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// Хак без Stack внутри Row: отдельный виджет, который рисует neutral текст строкой ниже
-class PositionedTextOverlay extends StatelessWidget {
-  const PositionedTextOverlay({super.key, required this.neutral});
-  final String neutral;
+class _CenterIcon extends StatelessWidget {
+  const _CenterIcon({required this.icon, required this.color});
+  final IconData icon;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    // выведем нейтральное событие отдельной строкой под рядом
-    return const SizedBox.shrink();
+    return SizedBox(
+      width: 44,
+      child: Column(
+        children: [
+          Container(width: 2, height: 10, color: Colors.white10),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.20),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          Container(width: 2, height: 10, color: Colors.white10),
+        ],
+      ),
+    );
   }
 }
 
@@ -401,11 +556,11 @@ IconData _eventIcon(String type) {
     case 'red':
       return Icons.rectangle_rounded;
     case 'var':
-      return Icons.verified_rounded;
+      return Icons.videocam_outlined;
     case 'start':
-      return Icons.play_arrow_rounded;
+      return Icons.sports; // иконка центра (сам старт мы рисуем свистком выше)
     case 'end':
-      return Icons.flag_rounded;
+      return Icons.sports;
     default:
       return Icons.bolt_rounded;
   }
@@ -421,36 +576,35 @@ Color _eventColor(String type) {
       return Colors.redAccent;
     case 'var':
       return AppTheme.orange;
-    case 'start':
-      return Colors.white70;
-    case 'end':
-      return Colors.white70;
     default:
       return Colors.white70;
   }
 }
 
-String _eventText(String type, {required String player, required String minute}) {
-  final who = player.isEmpty ? '' : player;
+String _eventTitle(String type) {
   switch (type) {
-    case 'start':
-      return minute.isEmpty ? 'Почався матч' : 'Почався матч • $minute';
-    case 'end':
-      return minute.isEmpty ? 'Матч завершено' : 'Матч завершено • $minute';
     case 'goal':
-      if (who.isEmpty) return minute.isEmpty ? 'Гол' : 'Гол • $minute';
-      return minute.isEmpty ? who : '$who • $minute';
+      return 'Гол';
     case 'yellow':
-      if (who.isEmpty) return minute.isEmpty ? 'Жовта картка' : 'Жовта • $minute';
-      return minute.isEmpty ? who : '$who • $minute';
+      return 'Жовта картка';
     case 'red':
-      if (who.isEmpty) return minute.isEmpty ? 'Червона картка' : 'Червона • $minute';
-      return minute.isEmpty ? who : '$who • $minute';
+      return 'Червона картка';
     case 'var':
-      return minute.isEmpty ? 'VAR' : 'VAR • $minute';
+      return 'VAR';
+    case 'start':
+      return 'Матч почався';
+    case 'end':
+      return 'Матч завершено';
     default:
-      return minute.isEmpty ? type : '$type • $minute';
+      return type.isEmpty ? 'Подія' : type;
   }
+}
+
+String _eventTitleWithNote(String type, String note) {
+  final base = _eventTitle(type);
+  final n = note.trim();
+  if (type == 'var' && n.isNotEmpty) return '$base ($n)';
+  return base;
 }
 
 // ===== event model =====
@@ -458,40 +612,47 @@ String _eventText(String type, {required String player, required String minute})
 class _MatchEvent {
   final String id;
   final String type; // start/goal/yellow/red/var/end
-  final String? teamSide; // home/away/null
+  final String? side; // home/away/null
   final int? minute;
   final String? playerName;
+  final String? assistName;
+  final String? note;
 
   _MatchEvent({
     required this.id,
     required this.type,
-    required this.teamSide,
+    required this.side,
     required this.minute,
     required this.playerName,
+    required this.assistName,
+    required this.note,
   });
 
-  factory _MatchEvent.fromDoc(QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    final type = (data['type'] ?? '').toString();
-    final teamSide = (data['teamSide'] ?? '').toString().trim();
+  factory _MatchEvent.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+
+    final type = (data['type'] ?? '').toString().trim();
+    final side = (data['side'] ?? '').toString().trim(); // ✅ ВАЖНО: side
+
     final minuteRaw = data['minute'];
     int? minute;
-    if (minuteRaw is int) minute = minuteRaw;
     if (minuteRaw is num) minute = minuteRaw.toInt();
 
-    final player = (data['playerName'] ?? data['player'] ?? '').toString();
+    final playerName = (data['playerName'] ?? '').toString().trim();
+    final assistName = (data['assistName'] ?? '').toString().trim();
+    final note = (data['note'] ?? '').toString().trim();
 
     return _MatchEvent(
       id: doc.id,
       type: type.isEmpty ? 'event' : type,
-      teamSide: teamSide.isEmpty ? null : teamSide,
+      side: side.isEmpty ? null : side,
       minute: minute,
-      playerName: player.trim().isEmpty ? null : player.trim(),
+      playerName: playerName.isEmpty ? null : playerName,
+      assistName: assistName.isEmpty ? null : assistName,
+      note: note.isEmpty ? null : note,
     );
   }
 }
-
-// ===== existing helpers/widgets (твои) =====
 
 String? _fieldLabelFromData(Map<String, dynamic> data) {
   final raw = data['field'] ?? data['fieldNumber'] ?? data['fieldNo'] ?? data['pitch'];
@@ -508,7 +669,7 @@ String? _fieldLabelFromData(Map<String, dynamic> data) {
 
 Future<void> _openUrl(BuildContext context, String url) async {
   final uri = Uri.tryParse(url.trim());
-  if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+  if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Невірне посилання')),
     );
@@ -550,10 +711,10 @@ class _TeamTap extends StatelessWidget {
               if (!alignEnd) _TeamBig(id: teamId),
               if (!alignEnd) const SizedBox(width: 10),
               Flexible(
-                child: FutureBuilder<DocumentSnapshot>(
+                child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   future: db.collection('teams').doc(teamId.toLowerCase()).get(),
                   builder: (context, snap) {
-                    final data = snap.data?.data() as Map<String, dynamic>?;
+                    final data = snap.data?.data();
                     final raw = (data?['name'] ?? teamId).toString();
                     final name = _beautifyTeamName(raw);
 
@@ -584,10 +745,10 @@ class _TeamBig extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = FirebaseFirestore.instance;
 
-    return FutureBuilder<DocumentSnapshot>(
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       future: db.collection('teams').doc(id.toLowerCase()).get(),
       builder: (context, snap) {
-        final logoUrl = (snap.data?.data() as Map<String, dynamic>?)?['logoUrl']?.toString();
+        final logoUrl = snap.data?.data()?['logoUrl']?.toString() ?? '';
 
         return Container(
           width: 52,
@@ -596,11 +757,11 @@ class _TeamBig extends StatelessWidget {
             shape: BoxShape.circle,
             color: Colors.black.withOpacity(0.25),
             border: Border.all(color: Colors.white10),
-            image: (logoUrl != null && logoUrl.isNotEmpty)
+            image: logoUrl.trim().isNotEmpty
                 ? DecorationImage(image: NetworkImage(logoUrl), fit: BoxFit.cover)
                 : null,
           ),
-          child: (logoUrl == null || logoUrl.isEmpty)
+          child: logoUrl.trim().isEmpty
               ? const Icon(Icons.shield_rounded, size: 26, color: Colors.white70)
               : null,
         );
@@ -732,7 +893,7 @@ String _beautifyTeamName(String s) {
   if (low.startsWith('fk_')) x = x.substring(3);
   if (low.startsWith('fk ')) x = x.substring(3);
   if (low.startsWith('фк ')) x = x.substring(3);
-  if (low.startsWith('лфк ')) x = x.substring(3);
+  if (low.startsWith('лфк ')) x = x.substring(4);
 
   x = x.replaceAll('_', ' ').trim();
 

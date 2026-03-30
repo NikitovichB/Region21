@@ -49,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Stack(
       children: [
         Positioned.fill(
-          child: Image.asset('assets/stadium.jpg', fit: BoxFit.cover),
+          child: Image.asset('assets/back.jpg', fit: BoxFit.cover),
         ),
         Positioned.fill(
           child: Container(color: Colors.black.withOpacity(0.55)),

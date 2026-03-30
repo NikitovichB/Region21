@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
+import 'screens/intro_screen.dart';
 import 'app/app_shell.dart';
 import 'theme/app_theme.dart';
 
@@ -24,7 +25,9 @@ class RegionApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Region 21',
       theme: AppTheme.darkTheme(),
-      home: const AppShell(),
+      home: const IntroScreen(
+      next: AppShell(),
+      ),
     );
   }
 }

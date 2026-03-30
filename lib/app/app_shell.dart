@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
 import '../screens/matches_screen.dart';
 import '../screens/table_screen.dart';
-import '../screens/schedule_screen.dart';
+import '../screens/about_screen.dart';
 import '../theme/app_theme.dart';
 
 class AppShell extends StatefulWidget {
@@ -19,7 +19,7 @@ class _AppShellState extends State<AppShell> {
     HomeScreen(),
     MatchesScreen(),
     TableScreen(),
-    ScheduleScreen(),
+    AboutScreen(),
   ];
 
   @override
@@ -69,8 +69,8 @@ class _AppShellState extends State<AppShell> {
                   label: 'Таблиця',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.calendar_month_rounded),
-                  label: 'Розклад',
+                  icon: Icon(Icons.info_outline_rounded),
+                  label: 'Про нас',
                 ),
               ],
             ),

@@ -111,27 +111,41 @@ class TeamScreen extends StatelessWidget {
                           border: Border.all(color: Colors.white10),
                         ),
                         child: TabBar(
-                          dividerColor: Colors.transparent,
-                          indicator: BoxDecoration(
-                            color: AppTheme.orange.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: AppTheme.orange.withOpacity(0.45),
-                            ),
-                          ),
-                          labelColor: AppTheme.orange,
-                          unselectedLabelColor: Colors.white,
-                          labelStyle: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                          ),
-                          tabs: const [
-                            Tab(text: 'Склад'),
-                            Tab(text: 'Матчі'),
-                            Tab(text: 'Таблиця'),
-                            Tab(text: 'Медіа'),
-                          ],
-                        ),
+  isScrollable: false,
+  indicatorSize: TabBarIndicatorSize.tab,
+  dividerColor: Colors.transparent,
+
+  indicatorPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+
+  indicator: BoxDecoration(
+    color: AppTheme.orange.withOpacity(0.18),
+    borderRadius: BorderRadius.circular(14),
+    border: Border.all(
+      color: AppTheme.orange.withOpacity(0.45),
+    ),
+  ),
+
+  labelColor: AppTheme.orange,
+  unselectedLabelColor: Colors.white,
+
+  labelStyle: const TextStyle(
+    fontWeight: FontWeight.w700,
+    fontSize: 11,
+    height: 1.4,
+  ),
+  unselectedLabelStyle: const TextStyle(
+    fontWeight: FontWeight.w700,
+    fontSize: 11,
+    height: 1.4,
+  ),
+
+  tabs: const [
+    Tab(child: Center(child: Text('Склад'))),
+    Tab(child: Center(child: Text('Матчі'))),
+    Tab(child: Center(child: Text('Таблиця'))),
+    Tab(child: Center(child: Text('Медіа'))),
+  ],
+),
                       ),
                     ),
                     Expanded(
